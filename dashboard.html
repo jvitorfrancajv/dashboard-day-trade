@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Dashboard Day Trade</title>
+
+  <!-- Ícones -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <style>
+    body {
+      background: #0f172a;
+      color: #e5e7eb;
+      font-family: Arial, sans-serif;
+      padding: 20px;
+    }
+
+    h1 {
+      margin-bottom: 20px;
+    }
+
+    .cards {
+      display: flex;
+      gap: 15px;
+      flex-wrap: wrap;
+      margin-bottom: 20px;
+    }
+
+    .card {
+      background: #1e293b;
+      padding: 15px;
+      border-radius: 10px;
+      min-width: 150px;
+      text-align: center;
+    }
+
+    .card p {
+      font-size: 22px;
+      margin: 5px 0 0;
+    }
+
+    .form-group {
+      margin-bottom: 10px;
+    }
+
+    input, select, textarea {
+      width: 200px;
+      padding: 6px;
+      border-radius: 6px;
+      border: none;
+    }
+
+    button {
+      background: #22c55e;
+      border: none;
+      padding: 10px 15px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 15px;
+      margin-top: 10px;
+    }
+
+    button:hover {
+      background: #16a34a;
+    }
+
+    table {
+      width: 100%;
+      margin-top: 25px;
+      border-collapse: collapse;
+    }
+
+    th, td {
+      border: 1px solid #334155;
+      padding: 8px;
+      text-align: center;
+    }
+
+    th {
+      background: #1e293b;
+    }
+
+    .positivo {
+      color: #22c55e;
+      font-weight: bold;
+    }
+
+    .negativo {
+      color: #ef4444;
+      font-weight: bold;
+    }
+
+    #filters {
+      margin-bottom: 15px;
+    }
+  </style>
+</head>
+
+<body>
+
+<h1><i class="fa-solid fa-chart-line"></i> Dashboard Day Trade</h1>
+
+<!-- CARDS -->
+<div class="cards">
+  <div class="card"><h4>Total Ops</h4><p id="totalOps">0</p></div>
+  <div class="card"><h4>Lucro</h4><p id="lucro">0</p></div>
+  <div class="card"><h4>Média</h4><p id="media">0</p></div>
+  <div class="card"><h4>Win Rate</h4><p id="winRate">0%</p></div>
+</div>
+
+<!-- FILTROS -->
+<div id="filters">
+  <select id="filterAtivo">
+    <option value="">Todos</option>
+    <option value="WIN">WIN</option>
+    <option value="WDO">WDO</option>
+    <option value="BTC">BTC</option>
+  </select>
+
+  <select id="filterTipo">
+    <option value="">Todos</option>
+    <option value="Compra">Compra</option>
+    <option value="Venda">Venda</option>
+  </select>
+</div>
+
+<!-- FORMULÁRIO -->
+<div>
+  <div class="form-group">
+    <input type="date" id="data">
+  </div>
+
+  <div class="form-group">
+    <select id="ativo">
+      <option value="WIN">WIN</option>
+      <option value="WDO">WDO</option>
+      <option value="BTC">BTC</option>
+    </select>
+  </div>
+
+  <div class="form-group">
+    <select id="tipo">
+      <option value="Compra">Compra</option>
+      <option value="Venda">Venda</option>
+    </select>
+  </div>
+
+  <div class="form-group">
+    <input type="number" id="resultado" placeholder="Resultado">
+  </div>
+
+  <div class="form-group">
+    <textarea id="observacao" placeholder="Observação"></textarea>
+  </div>
+
+  <button id="salvar"><i class="fa-solid fa-floppy-disk"></i> Salvar</button>
+</div>
+
+<!-- TABELA -->
+<table>
+  <thead>
+    <tr>
+      <th>Data</th>
+      <th>Ativo</th>
+      <th>Tipo</th>
+      <th>Resultado</th>
+      <th>Obs</th>
+      <th>Ação</th>
+    </tr>
+  </thead>
+  <tbody id="tabela"></tbody>
+</table>
+
+<!-- GRÁFICO -->
+<canvas id="grafico" style="margin-top:30px;"></canvas>
+
+<script>
+  let operacoes = [];
+
+  const tabela = document.getElementById('tabela');
+  const totalOps = document.getElementById('totalOps');
+  const lucroEl = document.getElementById('lucro');
+  const mediaEl = document.getElementById('media');
+  const winRateEl = document.getElementById('winRate');
+
+  const filterAtivo = document.getElementById('filterAtivo');
+  const filterTipo = document.getElementById('filterTipo');
+
+  function atualizar() {
+    tabela.innerHTML = '';
+
+    const filtradas = operacoes.filter(op =>
+      (filterAtivo.value === '' || op.ativo === filterAtivo.value) &&
+      (filterTipo.value === '' || op.tipo === filterTipo.value)
+    );
+
+    filtradas.forEach((op, i) => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${op.data}</td>
+        <td>${op.ativo}</td>
+        <td>${op.tipo}</td>
+        <td class="${op.resultado >= 0 ? 'positivo' : 'negativo'}">${op.resultado}</td>
+        <td>${op.obs}</td>
+        <td><button onclick="remover(${i})">🗑</button></td>
+      `;
+      tabela.appendChild(tr);
+    });
+
+    const lucro = filtradas.reduce((s, o) => s + o.resultado, 0);
+    totalOps.textContent = filtradas.length;
+    lucroEl.textContent = lucro;
+    mediaEl.textContent = filtradas.length ? (lucro / filtradas.length).toFixed(2) : 0;
+
+    const wins = filtradas.filter(o => o.resultado > 0).length;
+    winRateEl.textContent = filtradas.length ? ((wins / filtradas.length) * 100).toFixed(1) + '%' : '0%';
+
+    atualizarGrafico(filtradas);
+  }
+
+  function remover(i) {
+    operacoes.splice(i, 1);
+    atualizar();
+  }
+
+  document.getElementById('salvar').onclick = () => {
+    const data = document.getElementById('data').value;
+    const ativo = document.getElementById('ativo').value;
+    const tipo = document.getElementById('tipo').value;
+    const resultado = Number(document.getElementById('resultado').value);
+    const obs = document.getElementById('observacao').value;
+
+    if (!data || isNaN(resultado)) {
+      alert('Preencha corretamente');
+      return;
+    }
+
+    operacoes.push({ data, ativo, tipo, resultado, obs });
+    atualizar();
+  };
+
+  filterAtivo.onchange = atualizar;
+  filterTipo.onchange = atualizar;
+
+  const ctx = document.getElementById('grafico');
+  const grafico = new Chart(ctx, {
+    type: 'line',
+    data: { labels: [], datasets: [{ data: [], borderColor: '#22c55e' }] },
+    options: { responsive: true, plugins: { legend: { display: false } } }
+  });
+
+  function atualizarGrafico(dados) {
+    let acc = 0;
+    grafico.data.labels = dados.map(o => o.data);
+    grafico.data.datasets[0].data = dados.map(o => acc += o.resultado);
+    grafico.update();
+  }
+</script>
+
+</body>
+</html>
